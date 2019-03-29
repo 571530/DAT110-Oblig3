@@ -83,8 +83,8 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 	}
 	
 	public void releaseLocks() throws RemoteException {
-		incrementclock();
 		CS_BUSY = false;
+		WANTS_TO_ENTER_CS = false;
 		// release your lock variables and logical clock update
 	}
 	

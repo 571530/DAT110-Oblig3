@@ -39,7 +39,7 @@ public class NodeClientReader extends Thread {
 
 		
 		// connect to an active chord node - can use the process defined in StaticTracker 
-		
+		String activeNode = StaticTracker.ACTIVENODES[0];
 		// Compute the hash of the node's IP address
 		
 		// use the hash to retrieve the ChordNodeInterface remote object from the registry
