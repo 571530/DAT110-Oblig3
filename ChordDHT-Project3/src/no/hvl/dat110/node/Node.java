@@ -313,18 +313,26 @@ public class Node extends UnicastRemoteObject implements ChordNodeInterface {
 		
 		// the same as MutexProcess - see MutexProcess
 
-		fingerTable.remove(this);			// remove this process from the list
-
+		ArrayList<Message> replicas = new ArrayList<>(activenodesforfile);
+		replicas.remove(message);										// don't repeat the operation for the initiating process
 
 		// randomize - shuffle list each time - to get random processes each time
-		Collections.shuffle(fingerTable);
+		Collections.shuffle(replicas);
 
 		// multicast message to N/2 + 1 processes (random processes) - block until feedback is received
-		for (int i = 0; i < fingerTable.size(); i++) {
-			ChordNodeInterface node = fingerTable.get(i);
+		int qourom = replicas.size()/ 2 + 1;
+		for (Message activenodes : replicas) {
+			String nodeip = activenodes.getNodeIP();
+			String nodeid = activenodes.getNodeID().toString();
+			try {
+				Registry registry = Util.locateRegistry(nodeip);		// locate the registry and see if the node is still active
+				ChordNodeInterface node = (ChordNodeInterface) registry.lookup(nodeid);
 
-			Message reply = node.onMessageReceived(message);
-			queueACK.add(reply);
+				Message reply = node.onMessageReceived(message);
+				queueACK.add(reply);
+			} catch (NotBoundException e) {
+				//e.printStackTrace();
+			}
 		}
 
 		// do something with the acknowledgement you received from the voters - Idea: use the queueACK to collect GRANT/DENY messages and make sure queueACK is synchronized!!!
@@ -406,13 +414,12 @@ public class Node extends UnicastRemoteObject implements ChordNodeInterface {
 
 
 
-		quorum = this.fingerTable.size() / 2 + 1;
+		quorum = this.activenodesforfile.size() / 2 + 1;
 		return queueACK.stream().filter(m -> m.isAcknowledged()).count() >= quorum;
 	}
 
 	@Override
 	public void setActiveNodesForFile(Set<Message> messages) throws RemoteException {
-		
 		activenodesforfile = messages;
 		
 	}
@@ -446,19 +453,16 @@ public class Node extends UnicastRemoteObject implements ChordNodeInterface {
 	
 	@Override
 	public void multicastUpdateOrReadReleaseLockOperation(Message message) throws RemoteException {
+		ArrayList<Message> replicas = new ArrayList<>(activenodesforfile);
 
 		// check the operation type:
 		// if this is a write operation, multicast the update to the rest of the replicas (voters)
+		Operations op = new Operations(this, message, activenodesforfile);
 		if (message.getOptype() == OperationType.WRITE) {
-			for (ChordNodeInterface node : fingerTable) {
-				node.onReceivedUpdateOperation(message);
-			}
+			op.multicastOperationToReplicas(message);
 		}
-		// otherwise if this is a READ operation multicast releaselocks to the replicas (voters)
-		else if (message.getOptype() == OperationType.READ) {
-			for (ChordNodeInterface node : fingerTable) {
-				node.onReceivedUpdateOperation(message);
-			}
+		else {
+			op.multicastReadReleaseLocks();
 		}
 	}
 	
@@ -466,9 +470,19 @@ public class Node extends UnicastRemoteObject implements ChordNodeInterface {
 	public void multicastVotersDecision(Message message) throws RemoteException {	
 		
 		// multicast voters decision to the rest of the replicas (i.e activenodesforfile)
-		fingerTable.remove(this);
-		for (ChordNodeInterface node : fingerTable) {
-			node.onReceivedVotersDecision(message);
+		ArrayList<Message> replicas = new ArrayList<>(activenodesforfile);
+
+		for (Message activenodes : replicas) {
+			String nodeip = activenodes.getNodeIP();
+			String nodeid = activenodes.getNodeID().toString();
+			try {
+				Registry registry = Util.locateRegistry(nodeip);		// locate the registry and see if the node is still active
+				ChordNodeInterface node = (ChordNodeInterface) registry.lookup(nodeid);
+
+				node.onReceivedVotersDecision(message);
+			} catch (NotBoundException e) {
+				//e.printStackTrace();
+			}
 		}
 
 	}
