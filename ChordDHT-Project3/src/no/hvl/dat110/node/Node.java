@@ -289,7 +289,6 @@ public class Node extends UnicastRemoteObject implements ChordNodeInterface {
 		// wants to access resource - multicast clock + message to other processes
 		WANTS_TO_ENTER_CS = true;
 		boolean electionresult = multicastMessage(message);			// request for write permission from N/2 + 1 replicas (majority)
-		
 		return electionresult;
 		
 	}
@@ -321,6 +320,9 @@ public class Node extends UnicastRemoteObject implements ChordNodeInterface {
 
 		// multicast message to N/2 + 1 processes (random processes) - block until feedback is received
 		int qourom = replicas.size()/ 2 + 1;
+
+		queueACK.clear();
+
 		for (Message activenodes : replicas) {
 			String nodeip = activenodes.getNodeIP();
 			String nodeid = activenodes.getNodeID().toString();
@@ -411,8 +413,6 @@ public class Node extends UnicastRemoteObject implements ChordNodeInterface {
 		// count the number of yes (i.e. where message.isAcknowledged = true)
 		// check if it is the majority or not
 		// return the decision (true or false)
-
-
 
 		quorum = this.activenodesforfile.size() / 2 + 1;
 		return queueACK.stream().filter(m -> m.isAcknowledged()).count() >= quorum;
